@@ -1,5 +1,5 @@
 ---
-title: "Introduction to R and RStudio"
+title: "Introduction to R and RStudio_completed"
 author: Nicole Black, Kayla Xu
 date: 07/13/22
 updated: 01/22/24
@@ -46,7 +46,7 @@ setwd() # (ex: "/Users/nicoleblack/Desktop/qbio_490_nicole/week3_R")
 
 ```{r setup Exercise 2.3}
     # replace path with the path to your qbio_490_name directory
-    knitr::opts_knit$set(root.dir = normalizePath("/PATH/TO/DIRECTORY")) 
+    knitr::opts_knit$set(root.dir = normalizePath("/home1/yuhanyua/490_cluster/week4_R")) 
 ```
 
   Now that your environment is set up, let's get into coding!
@@ -61,7 +61,7 @@ var_num <- 23
 var_vector <- c(3, 2, 1)
 
 ## Create a new variable my_var to store anything you choose:
-
+my_var<-"happy weekend"
 
 print(my_var)
 ```
@@ -79,26 +79,29 @@ na <- NA
 
 # Boolean Value is either true or false
 ## booleans can be defined in a variety of ways in R!
-true_var <- 
-false_var <- 
+true_var <- T
+false_var <- F
 
 ## numeric is a catch all for any number value in R
-negative <- 
-decimal <- 
+negative <- -3
+decimal <- 3.2
 
 ## a string is any text value
 ## strings can be enclosed in single or double quote
-string_var <- 
-char_var <- 
+string_var <- "helloworld"
+char_var <- 'a'
 
 ## vectors contain data elements of the same data type
 ## they are declared by enclosing elements in c()
-vector <- c() 
+vector <- c(3,4,5) 
 
 ## a factor is a categorical variable
 ## a factor has data elements (defined like a vector) and categories (known also as levels), that are inferred from the data 
 factor <- factor(vector) 
-factor
+##factor
+music_genre <- factor(c("jazz","pop","classic","rock","jazz","rhythmn&blues"))
+print(music_genre)
+print(levels(music_genre))
 ```
 
   A note on variable naming:
@@ -125,6 +128,18 @@ SUMOFAGES <- sum(numeric_vector)
 
 ```{r Exercise 3.4}
 ## add code here!
+name<-"Yuhan"
+age<-18
+birthday<-"03/20/2006"
+three_fav_colors<-c("white","blue","grey")
+name
+typeof(name)
+age
+typeof(age)
+birthday
+typeof(birthday)
+three_fav_colors
+typeof(three_fav_colors)
 ```
 
 ###### (4) Functions
@@ -156,7 +171,16 @@ max_value
 list_of_numbers <- c(1, 1, 2, 3, 5, 8, 13, 21)
 
 ## call functions here
-
+sumOfnumbers<-sum(list_of_numbers)
+minOfnumbers<-min(list_of_numbers)
+meanOfnumbers<-mean(list_of_numbers)
+modeOfnumbers<-mode(list_of_numbers)
+summaryOfnumbers<-summary(list_of_numbers)
+sumOfnumbers
+minOfnumbers
+meanOfnumbers
+modeOfnumbers
+summaryOfnumbers
 
 ```
 
@@ -181,14 +205,14 @@ list_of_numbers <- c(1, 1, 2, 3, 5, 8, 13, 21)
   Predict what each statement will evaluate to:
 
 ```{r Exercise 5.2}
-"cat" == "cat" & "dog" == "dog" # prediction: 
-"cat" == "cat" & "fish" == "hamster" # prediction: 
+"cat" == "cat" & "dog" == "dog" # prediction: True
+"cat" == "cat" & "fish" == "hamster" # prediction: False
 
-1 < 2 | 3 < 1 # prediction: 
-1 < 2 | 3 < 5 # prediction: 
+1 < 2 | 3 < 1 # prediction: False
+1 < 2 | 3 < 5 # prediction: True
 
 "blue" %in% c("yellow", "red", "blue") &! "happy" %in% c("sad", "angry")
-# prediction: 
+# prediction: True
 ```
 
   "If" statements (along with "else if" and "else" statements) are the most simple control flows to write, and they are also what we will use the majority of the time.
@@ -197,12 +221,12 @@ list_of_numbers <- c(1, 1, 2, 3, 5, 8, 13, 21)
 
 ```{r Exercise 5.3}
 
-if (# condition) {
-  # action
-} else if (# condition) {
-  # action
+if (name!="Yuhan") {
+  print("what's your name?")
+} else if (name=="Yuhan") {
+  print("Success!")
 } else {
-  # action
+  print("Hi")
 }
 ```
 
@@ -241,6 +265,7 @@ if (7.5 %in% new_list) {
 } else {
   print("G")
 }
+##prediction:D E
 ```
 
 ###### (6) Loops
@@ -272,9 +297,11 @@ while (i < 10) {
 x = 0
 my_list <- c(1, 10, x)
 mean <- mean(my_list)
-while (# condition) {
-  # do something
-  # update condition
+while (mean<=10) {
+  print(mean)
+  x = x + 1
+  my_list<-c(1,10,x)
+  mean<-mean(my_list)
 }
 ```
 
@@ -300,7 +327,9 @@ for (element in list) { # note that I can call "element" whatever I want, it lik
 
 ```{r Exercise 6.6}
 list <- c(1, 5, 20, 0)
-
+for (x in list){
+  print(x^3)
+}
 # write loop here
 ```
 
@@ -316,6 +345,9 @@ for (i in 1:10) {
 
 ```{r Exercise 6.8}
 # write loop here
+for (number in -7:7){
+  print(number)
+}
 
 ```
 
@@ -421,6 +453,10 @@ library(package) # you need to load in a package in every file that uses it (it'
 
 ```{r}
 # write code here
+?is.na
+help(is.na)
+args(is.na)
+
 ```
 
 ###### (12) Further Practice
