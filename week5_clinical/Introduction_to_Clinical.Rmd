@@ -363,7 +363,8 @@ cleaned_clinic$survival_time <- as.numeric(cleaned_clinic$survival_time)
 
 Finally, we need to make a death event column that contains T if a patient has died, and F if the patient is alive. (Hint: cleaned_clinic$vital_status has "Alive" if a patient is alive and "Dead" if a patient passed.)
 ```{r}
-cleaned_clinic$death_event <- cleaned_clinic$vital_status=="Dead"
+cleaned_clinic$death_event <- ifelse(cleaned_clinic$vital_status=="Dead","T","F")
+cleaned_clinic$death_event
 ```
 
 # 2. Create Survminer Objects
@@ -371,7 +372,7 @@ cleaned_clinic$death_event <- cleaned_clinic$vital_status=="Dead"
 Run the following code block.
 ```{r}
 survival_object <- Surv(time = cleaned_clinic$survival_time,
-                        event = cleaned_clinic$death_event)
+                        event = as.numeric(cleaned_clinic$death_event=="T"))
 
 fit_object <- survfit(survival_object ~ age_category, data = cleaned_clinic)
 
@@ -402,7 +403,7 @@ Time
 # 3. What age group appears to have the greatest rate of survival?
 middle
 # 4. What age group appears to have the worst rate of survival? 
-old
+young
 # 5. What is the approx. 15-year survival rate for "Old" breast cancer patients?
 0.3125
 # 6. What is the p-value? Is it statistically significant and what does that tell us about the relationship between age and breast cancer survival? 
