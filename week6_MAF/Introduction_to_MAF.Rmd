@@ -1,5 +1,5 @@
 ---
-title: "Introduction to MAF_completed"
+title: "Introduction to MAF_completed_modified"
 author: Mahija Mogalipuvvu, adapted from Nicole Black, Wade Boohar
 date: 07/17/22
 updated: 10/3/24
@@ -57,12 +57,23 @@ White_maf <- subsetMaf(maf = maf_object,
                        tsb = White_barcodes)
 non_white_maf <- subsetMaf(maf = maf_object,
                        tsb = non_white_barcodes)
+
+m1.genes = getGeneSummary(White_maf)[1:5]
+m2.genes = getGeneSummary(non_white_maf)[1:5]
+mdt = merge(White_maf.genes[,.(Hugo_Symbol, MutatedSamples)], non_white_maf.genes[,.(Hugo_Symbol, MutatedSamples)], by = 'Hugo_Symbol', all = TRUE)
+mdt$MutatedSamples.x[is.na(mdt$MutatedSamples.x)] = 0
+mdt$MutatedSamples.y[is.na(mdt$MutatedSamples.y)] = 0
+mdt$max = apply(mdt[,.(MutatedSamples.x, MutatedSamples.y)], 1, max)
+mdt = mdt[order(max, decreasing = TRUE)
+
 coOncoplot(m1 = White_maf, 
            m2 = non_white_maf, 
            m1Name = "White", 
            m2Name = "Non-white", 
            borderCol = NA
-           top=10)
+           )
+#There is a large discrepancy in % mutated for TP53 between two populations. TP 53 is crucial in tumor suppression as it regulates cell cycle.The reason for this discrepancy might be ethinic and racial genetic difference(since the number of samples for non_white population is fewer than that of white population, so it could also because of not enough samples)
+
 ```
 
 
@@ -85,6 +96,7 @@ maf_object@clinical.data$TP53_mutation <- factor(maf_object@clinical.data$TP53_m
 
 contig <- table(maf_object@clinical.data$race, maf_object@clinical.data$TP53_mutation)
 mosaicplot(contig)
+
 fisher_result <- fisher.test(contig)
 print(fisher_result)
 ```
@@ -99,6 +111,7 @@ lollipopPlot2(m1 = White_maf,
               m1_name = "White_patients",
               m2_name = "Non_white_patients",
               gene = "TP53")
+#non-white patients seem to have a higher mutation rate than white patients, while sites and types are quit similar
 ```
 
 
@@ -124,7 +137,7 @@ cleaned_clinical.data$Overall_Survival_Status<-
   ifelse(cleaned_clinical.data$vital_status=="Death",T,F)
 
 survival_object <- Surv(time = cleaned_clinical.data$survival_time , 
-                        event = cleaned_clinical.data$Overall_Survival_Status)
+                        event = as.numeric(cleaned_clinical.data$Overall_Survival_Status))
 
 cleaned_clinical.data$White_or_not<-ifelse(maf_object@clinical.data$race=="WHITE","White","Non-white")
 fit_object <- survfit(survival_object ~ White_or_not, data =cleaned_clinical.data)
@@ -141,4 +154,5 @@ KM_plot <- survplot$plot + theme_bw() + theme(axis.title =element_text(size=20),
                                               legend.title = element_text(size=14),
                                               legend.text =element_text(size=12))
 KM_plot
+ggsave("/home1/yuhanyua/490_cluster/week6_MAF/oncoplot_top_BRCA.png")
 ```
