@@ -1,0 +1,424 @@
+---
+title: "QBIO490_Final_Project"
+output: html_notebook
+---
+
+```{r setup}
+ #knitr::opts_knit$set(root.dir = normalizePath("/home1/yuhanyua/490_cluster/analysis_data"))
+```
+
+```{r}
+if (!require("BiocManager")) install.packages("BiocManager")
+if (!require("TCGAbiolinks")) BiocManager::install("TCGAbiolinks")
+if (!require("maftools")) BiocManager::install("maftools")
+if (!require("dplyr")) BiocManager::install("dplyr")
+
+library(BiocManager) 
+library(TCGAbiolinks)
+library(maftools)
+library(dplyr)
+```
+
+```{r}
+#Load in all data needed
+
+#clinical data
+clin_query <- GDCquery(project = "TCGA-SKCM",
+                       data.category = "Clinical",
+                       data.type = "Clinical Supplement",
+                       data.format = "BCR Biotab")
+
+GDCdownload(clin_query)
+clinical.BCRtab.all <- GDCprepare(clin_query)
+clinical <- clinical.BCRtab.all$clinical_patient_skcm[-c(1,2),]
+
+colnames(clinical)[ colnames(clinical) == "bcr_patient_barcode" ] <- "Tumor_Sample_Barcode"
+
+
+#MAF mutation data
+maf_query <- GDCquery(project = 'TCGA-SKCM',
+                      data.category = "Simple Nucleotide Variation",
+                      data.type = "Masked Somatic Mutation",
+                      workflow.type = "Aliquot Ensemble Somatic Variant Merging and Masking")
+GDCdownload(maf_query)
+maf<- GDCprepare(maf_query)
+maf_object <- read.maf(maf = maf,
+                       clinicalData = clinical, 
+                       isTCGA = TRUE)
+
+#Transcriptomic data
+rna_query <- GDCquery(project ="TCGA-SKCM",
+                      data.category = "Transcriptome Profiling",
+                      data.type = "Gene Expression Quantification",
+                      workflow.type = "STAR - Counts")
+GDCdownload(rna_query)
+rna_se <- GDCprepare(rna_query)
+
+rna_clinical<-data.frame(rna_se@colData)
+rna_clinical<-as.data.frame(rna_clinical)
+column_mask<-ifelse(colnames(rna_clinical)%in%c("treatments","primary_site","disease_type"),F,T)
+rna_clinical<-rna_clinical[ ,column_mask]
+
+rna_genes<-data.frame(rna_se@rowRanges@elementMetadata)
+rna_genes<-as.data.frame(rna_genes)
+
+rna_counts<-data.frame(rna_se@assays@data$unstranded)
+rna_counts<-as.data.frame(rna_counts)
+colnames(rna_counts)<-rna_clinical$patient
+rownames(rna_counts)<-rna_genes$gene_id
+
+#methylation data
+query <- GDCquery(project = "TCGA-SKCM",
+                  data.category = "DNA Methylation",
+                  data.type = "Methylation Beta Value",
+                  platform = "Illumina Human Methylation 450",
+                  data.format = "Dataframe")
+GDCdownload(query)
+methylation450 <- GDCprepare(query)
+
+methylation_clinical <- as.data.frame(methylation450@colData)
+betas <- as.data.frame(methylation450@assays@data@listData)
+cpg_sites <- as.data.frame(methylation450@rowRanges@elementMetadata)
+
+column_mask <- ifelse(colnames(methylation_clinical) %in% c('treatments', 'primary_site', 'disease_type'), F, T)
+methylation_clinical <- methylation_clinical[,column_mask]
+
+site_mask <- !grepl('-', cpg_sites$gene) & !grepl(';', cpg_sites$gene) & !is.na(cpg_sites$gene) & complete.cases(betas)
+betas <- betas[site_mask,]
+cpg_sites <- cpg_sites[site_mask,]
+
+
+```
+
+```{r}
+#save all data for later coding, will be comment out when submitting the code as final project
+#write.csv(clinical, "/home1/yuhanyua/490_cluster/analysis_data/SKCM_clinical_data.csv", row.names=FALSE)
+
+#write.csv(rna_clinical,"/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_clinical.csv")
+#write.csv(rna_genes,"/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_genes.csv")
+#write.csv(rna_counts,"/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_counts.csv")
+
+#write.csv(maf_object, "/home1/yuhanyua/490_cluster/analysis_data/SKCM_maf_object.csv")
+
+#write.csv(methylation_clinical, 'SKCM_methylation_clinical.csv')
+#write.csv(betas, 'SKCM_methylation_betas.csv')
+#write.csv(cpg_sites, 'SKCM_cpg_sites.csv')
+```
+
+
+1. survival analysis between MUC16 mutated samples and MUC16 non-mutated samples
+```{r}
+#categorized samples into BRAF mutated group and non-mutated group 
+#checking whether the Tumor_Sample_Barcode in maf_object@clinical.data matches with Tumor_Sample_Barcode in maf_object@data with BRAF mutation
+MUC16_mutated_samples <- maf_object@data[maf_object@data$Hugo_Symbol == "MUC16", "Tumor_Sample_Barcode"]
+maf_clinical<-maf_object@clinical.data
+maf_clinical$MUC16_mutation_status<-ifelse(maf_clinical$Tumor_Sample_Barcode%in%MUC16_mutated_samples$Tumor_Sample_Barcode,T,F)
+```
+
+```{r}
+#install package for KM plot
+if(!require("survival"))
+  install.packages(survival)
+library(BiocManager)
+library(survival)
+library(survminer)
+```
+
+```{r}
+#Data preprocessing:
+#cleaning data: create column "survival_time" and filter out NA value in survival_time
+maf_clinical$survival_time <- ifelse(!is.na(maf_clinical$death_days_to),
+                                        maf_clinical$death_days_to,                                
+                                        ifelse(!is.na(maf_clinical$last_contact_days_to),
+                                                maf_clinical$last_contact_days_to, NA))
+na_mask_survival_time<-maf_clinical$survival_time!="[Not Applicable]"
+maf_clinical<-maf_clinical[na_mask_survival_time, ]
+maf_clinical$survival_time<-as.numeric(maf_clinical$survival_time)
+
+#making death event
+na_mask_vital_status<-!is.na(maf_clinical$vital_status)
+maf_clinical<-maf_clinical[na_mask_vital_status, ]
+maf_clinical$death_event <- ifelse(maf_clinical$vital_status=="Dead","T","F")
+
+#Create Survminer Objects
+survival_object <- Surv(time = maf_clinical$survival_time,
+                        event = as.numeric(maf_clinical$death_event=="T"))
+
+fit_object <- survfit(survival_object ~ MUC16_mutation_status, data = maf_clinical)
+
+#plotting
+survplot <- ggsurvplot(fit_object,
+                       pval=TRUE,
+                       ggtheme = theme(plot.margin = unit(c(1,1,1,1), "cm")),
+                       legend = 'right')
+
+KM_plot <- survplot$plot + theme_bw() + theme(axis.title = element_text(size=20), 
+                                              axis.text = element_text(size=16),
+                                              legend.title = element_text(size=14),
+                                              legend.text = element_text(size=12))
+
+KM_plot
+#ggsave("/home1/yuhanyua/490_cluster/final_project/KMplot_mutated_VS_non-mutated.png")
+```
+
+2, co-oncoplot using MAF data to show top n most commonly mutated genes in MUC16 mutated samples compared to MUC16 non-mutated samples. This could tell a possible correlation(not causation) between MUC16 mutation and other genes that the mutation of which may possibly involve in tumor progression
+
+```{r}
+library(maftools)
+library(TCGAbiolinks)
+library(ggplot2)
+```
+
+```{r}
+#create two subsets of patients, one with MUC16 mutation, the other without MUC16 mutation
+MUC16_barcodes<-maf_clinical$Tumor_Sample_Barcode[maf_clinical$MUC16_mutation_status==TRUE]
+non_MUC16_barcodes<-maf_clinical$Tumor_Sample_Barcode[maf_clinical$MUC16_mutation_status==FALSE]
+
+
+MUC16_maf <- subsetMaf(maf = maf_object,
+                       tsb = MUC16_barcodes)
+non_MUC16_maf <- subsetMaf(maf = maf_object,
+                       tsb = non_MUC16_barcodes)
+
+m1.genes = getGeneSummary(MUC16_maf)[1:5]
+m2.genes = getGeneSummary(non_MUC16_maf)[1:5]
+
+MUC16_maf.genes <- getGeneSummary(MUC16_maf)[, .(Hugo_Symbol, MutatedSamples)]
+non_MUC16_maf.genes <- getGeneSummary(non_MUC16_maf)[, .(Hugo_Symbol, MutatedSamples)]
+mdt <- merge(MUC16_maf.genes, non_MUC16_maf.genes, by = "Hugo_Symbol", all = TRUE)
+
+#mdt = merge(MUC16_maf.genes[,.(Hugo_Symbol, MutatedSamples)], non_MUC16_maf.genes[,.(Hugo_Symbol, MutatedSamples)], by = 'Hugo_Symbol', all = TRUE)
+mdt$MutatedSamples.x[is.na(mdt$MutatedSamples.x)] = 0
+mdt$MutatedSamples.y[is.na(mdt$MutatedSamples.y)] = 0
+mdt$max = apply(mdt[,.(MutatedSamples.x, MutatedSamples.y)], 1, max)
+mdt = mdt[order(mdt$max, decreasing = TRUE)]
+
+#use base R plotting function to save the plot because class(co_oncoplot) is list and thus not compatible with ggsave
+#png("/home1/yuhanyua/490_cluster/final_project/coOncoplot_mutated_VS_non-mutated.png", width = 1000, height = 800)
+
+co_oncoplot<-coOncoplot(m1 = MUC16_maf, 
+           m2 = non_MUC16_maf, 
+           m1Name = "MUC16 mutated", 
+           m2Name = "MUC16 non-mutated", 
+           borderCol = NA
+           )
+
+#dev.off()
+
+```
+
+
+
+
+3. Differential expression analysis using RNA-seq data. This will visualize the upregulation and downregulation of genes in MUC16 mutated samples compared to non-mutated patients, showing correlation between MUC16 mutation and other genes' expression which may involved in tumor progression.
+
+```{r}
+if (!require("DESeq2", quietly = TRUE))
+BiocManager::install("DESeq2")
+library(DESeq2)
+
+BiocManager::install("EnhancedVolcano")
+library(EnhancedVolcano)
+```
+
+```{r}
+#rna_clinical<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_clinical.csv")
+#rna_counts<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_counts.csv", row.names = 1)
+#rna_genes<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_genes.csv")
+
+colnames(rna_counts)<-rna_clinical$patient
+rownames(rna_counts)<-rna_genes$gene_id
+```
+
+```{r}
+#variable of interest: comparing MUC16 mutated and non-mutated patients
+rna_clinical$MUC16_mutation_status<-ifelse(rna_clinical$patient%in%MUC16_mutated_samples$Tumor_Sample_Barcode,T,F)
+rna_clinical$MUC16_mutation_status<-factor(rna_clinical$MUC16_mutation_status)
+
+
+#covariates controlled: treatment history(immuno/chemo...) and race
+rad <- clinical.BCRtab.all$clinical_radiation_skcm[-c(1,2),] 
+drug <- clinical.BCRtab.all$clinical_drug_skcm[-c(1,2),]
+
+#data cleaning:remove NA values
+na_mask <- !is.na(rna_clinical$race)
+rna_clinical<-rna_clinical[na_mask, ]
+rna_counts<-rna_counts[ ,na_mask]
+
+#Add treatment data from rad and drug which are the treatments into rna_clinical—————one-hot encoding
+rna_clinical$Radiation <- rna_clinical$patient %in% rad$bcr_patient_barcode
+merged_data <- merge(rna_clinical, drug, by.x = "patient", by.y = "bcr_patient_barcode", all.x = TRUE)
+rna_clinical$Chemo <- rna_clinical$patient %in% drug$bcr_patient_barcode & 
+                             drug$pharmaceutical_therapy_type == "Chemotherapy"
+rna_clinical$Immuno <- rna_clinical$patient %in% drug$bcr_patient_barcode & 
+                             drug$pharmaceutical_therapy_type == "Immunotherapy"
+rna_clinical$Molecular <- rna_clinical$patient %in% drug$bcr_patient_barcode & 
+                             drug$pharmaceutical_therapy_type == "Targeted Molecular therapy"
+rna_clinical$Vaccine <- rna_clinical$patient %in% drug$bcr_patient_barcode & 
+                             drug$pharmaceutical_therapy_type == "Vaccine"
+
+
+#converte covariates to factor
+rna_clinical$race<-factor(rna_clinical$race)
+rna_clinical$Radiation<-factor(rna_clinical$Radiation)
+rna_clinical$Chemo<-factor(rna_clinical$Chemo)
+rna_clinical$Immuno<-factor(rna_clinical$Immuno)
+rna_clinical$Molecular<-factor(rna_clinical$Molecular)
+rna_clinical$Vaccine<-factor(rna_clinical$Vaccine)
+
+#matching the rows of cleaned_rna_clinical_DESeq2 to columns(patient barcode) of rna_counts data
+dim(rna_counts)
+dim(rna_clinical)
+
+#Filter out genes with a total expression across all patients of < 20
+gene_filter <- rowSums(rna_counts) >= 20
+rna_counts <- rna_counts[gene_filter, ] 
+rna_genes <- rna_genes[gene_filter, ]
+```
+
+```{r}
+#Create DESeq2 Data Set (dds)
+dds <- DESeqDataSetFromMatrix(countData = rna_counts,
+                              colData = rna_clinical,
+                            design=~race+Radiation+Chemo+Immuno+Molecular+Vaccine+MUC16_mutation_status)
+#Create DESeq2 Object
+dds_obj <- DESeq(dds)
+#Extract Results from DESeq
+resultsNames(dds_obj)
+results <- results(dds_obj,
+                   format = "DataFrame", 
+                   contrast = c("MUC16_mutation_status", "TRUE", "FALSE"))
+
+results <- data.frame(results)
+```
+```{r}
+results[, "-log10(padj)"] <- -log10(results$padj)
+results[, "gene_name"] <- rna_genes$gene_name
+
+#EnhancedVolcano(results,
+#                lab = results$gene_name,
+#                x = 'log2FoldChange',
+#                y = '-log10(padj)',
+#                pCutoff = 0.05,
+#                FCcutoff = 1, 
+#                selectLab = c("NRAS", "LRP1B", "PKHD1L1", "BRAF"),
+#                title = 'Gene expression: MUC16 mutated samples VS MUC16 non-mutated samples',
+#                pointSize = 1.0,
+#                labSize = 5.0,)  
+
+EnhancedVolcano(results,
+                lab = results$gene_name,
+                x = 'log2FoldChange',
+                y = '-log10(padj)',
+                xlim = c(-5, 5),  
+                ylim = c(0, 25),  
+                selectLab = c("TTH", "LRP1B", "PKHD1L1", "BRAF"),  # Select specific genes
+                title = 'Gene expression: MUC16 mutated samples VS MUC16 non-mutated samples',
+                pointSize = 1.0,
+                labSize = 5.0,
+                drawConnectors = TRUE,
+                widthConnectors = 0.5)
+
+#results[results$gene_name %in% c("NRAS", "LRP1B", "PKHD1L1", "BRAF"), ]
+
+#ggsave("/home1/yuhanyua/490_cluster/final_project/VolcanoPlot_mutated_VS_non-mutated.png")
+```
+
+
+```{r}
+#Saving results object for later differential methylation analysis between MUC16 mutated and non-mutated samples (Volcano plot). This should be comment out when submitting
+#write.csv(results, "/home1/yuhanyua/490_cluster/analysis_data/final_project_DESeq2_results.csv")
+#not used if differential expression volcano plot is not used in methylation data analysis
+#results<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/final_project_DESeq2_results.csv")
+```
+
+
+
+4.Boxplot to compare MUC16 transcriptional expression between metastatic and non-metastatic samples using transcriptomics data.
+```{r}
+if (!require("sesameData", quietly = TRUE))
+BiocManager::install("sesameData")
+
+if (!require("sesame", quietly = TRUE))
+BiocManager::install("sesame")
+
+if (!require("limma", quietly = TRUE))
+BiocManager::install("limma")
+
+library(TCGAbiolinks)
+library(sesame)
+library(sesameData)
+library(limma)
+```
+
+```{r}
+#methylation data preprocessing
+methylation_clinical <- as.data.frame(methylation450@colData)
+betas <- as.data.frame(methylation450@assays@data@listData)
+cpg_sites <- as.data.frame(methylation450@rowRanges@elementMetadata)
+
+column_mask <- ifelse(colnames(methylation_clinical) %in% c('treatments', 'primary_site', 'disease_type'), F, T)
+methylation_clinical <- methylation_clinical[,column_mask]
+
+site_mask <- !grepl('-', cpg_sites$gene) & !grepl(';', cpg_sites$gene) & !is.na(cpg_sites$gene) & complete.cases(betas)
+betas <- betas[site_mask,]
+cpg_sites <- cpg_sites[site_mask,]
+
+#Saving methylation data for later use. This should be comment out after submitting
+#write.csv(betas, 'SKCM_methylation_betas.csv')
+#write.csv(cpg_sites, 'SKCM_cpg_sites.csv')
+#write.csv(methylation_clinical, 'SKCM_methylation_clinical.csv')
+```
+```{r}
+#read in methylation data, this should be comment out after submitting
+#methylation_clinical <- read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_methylation_clinical.csv")
+#betas <- read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_methylation_betas.csv", row.names = 1)
+#cpg_sites <- read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_cpg_sites.csv")
+
+```
+
+
+```{r}
+gene_counts_mask <- rna_genes$gene_name == "MUC16"
+gene_betas_mask <- cpg_sites$gene == "MUC16"
+
+rna_clinical_metastatic <- rna_clinical$definition == "Metastatic"
+methylation_clinical_metastatic <- methylation_clinical$definition == "Metastatic"
+
+rna_clinical_nonMetastatic <- rna_clinical$definition == "Primary solid Tumor"
+methylation_clinical_nonMetastatic <- methylation_clinical$definition == "Primary solid Tumor"
+
+rna_metastatic <- as.numeric(rna_counts[gene_counts_mask, rna_clinical_metastatic])
+methylation_metastatic <- (betas[gene_betas_mask, methylation_clinical_metastatic])
+
+rna_nonMetastatic <- as.numeric(rna_counts[gene_counts_mask, rna_clinical_nonMetastatic])
+methylation_nonMetastatic <- (betas[gene_betas_mask, methylation_clinical_nonMetastatic])
+
+#use R base plotting to save the box plot
+#png("/home1/yuhanyua/490_cluster/final_project/boxplot_MUC16transcriptomics_MetastaticVSnon-metastatic.png", width=800, height=600)
+
+#create the box plot
+boxplot(rna_nonMetastatic, rna_metastatic,
+        xlab='Group',
+        ylab='Counts',
+        names=c('non-metastatic', 'metastatic'),
+        ylim = c(0, 500))          #setting the boundary for y-axis(counts)
+
+#save the boxplot
+#dev.off()
+
+#little difference is found
+#MUC16’s role in metastasis is well-documented in ovarian cancer and other cancers, but its role in melanoma metastasis may be different and might require different molecular context or co-factors to be significant.
+```
+
+
+5. bargraph to compare methylation levels across CpG sites of MUC16 gene in metastatic versus non-metastatic samples, highlighting potential epigenetic regulation.
+```{r}
+#png("/home1/yuhanyua/490_cluster/final_project/barplot_MUC16_methylation_MetastaticVSnon-metastatic.png", width=800, height=600)
+
+plot(1:dim(methylation_nonMetastatic)[1], apply(methylation_nonMetastatic, 1, mean), col='blue', type='h', lwd=3, ylab='Average Beta', xlab='CpG sites')
+lines(1.3:(dim(methylation_nonMetastatic)[1]+0.3), apply(methylation_metastatic, 1, mean), col='red', type='h', lwd=3)
+
+#dev.off()
+```
+
