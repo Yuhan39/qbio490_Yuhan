@@ -106,13 +106,13 @@ cpg_sites <- cpg_sites[site_mask,]
 ```
 
 
-1. survival analysis between MUC16 mutated samples and MUC16 non-mutated samples
+1. survival analysis between KRAS mutated samples and MUC16 non-mutated samples
 ```{r}
 #categorized samples into BRAF mutated group and non-mutated group 
 #checking whether the Tumor_Sample_Barcode in maf_object@clinical.data matches with Tumor_Sample_Barcode in maf_object@data with BRAF mutation
-MUC16_mutated_samples <- maf_object@data[maf_object@data$Hugo_Symbol == "MUC16", "Tumor_Sample_Barcode"]
+KRAS_mutated_samples <- maf_object@data[maf_object@data$Hugo_Symbol == "KRAS", "Tumor_Sample_Barcode"]
 maf_clinical<-maf_object@clinical.data
-maf_clinical$MUC16_mutation_status<-ifelse(maf_clinical$Tumor_Sample_Barcode%in%MUC16_mutated_samples$Tumor_Sample_Barcode,T,F)
+maf_clinical$KRAS_mutation_status<-ifelse(maf_clinical$Tumor_Sample_Barcode%in%KRAS_mutated_samples$Tumor_Sample_Barcode,T,F)
 ```
 
 ```{r}
@@ -144,7 +144,7 @@ maf_clinical$death_event <- ifelse(maf_clinical$vital_status=="Dead","T","F")
 survival_object <- Surv(time = maf_clinical$survival_time,
                         event = as.numeric(maf_clinical$death_event=="T"))
 
-fit_object <- survfit(survival_object ~ MUC16_mutation_status, data = maf_clinical)
+fit_object <- survfit(survival_object ~ KRAS_mutation_status, data = maf_clinical)
 
 #plotting
 survplot <- ggsurvplot(fit_object,
@@ -158,10 +158,10 @@ KM_plot <- survplot$plot + theme_bw() + theme(axis.title = element_text(size=20)
                                               legend.text = element_text(size=12))
 
 KM_plot
-#ggsave("/home1/yuhanyua/490_cluster/final_project/KMplot_mutated_VS_non-mutated.png")
+#nggsave("/home1/yuhanyua/490_cluster/final_project/KMplot_mutated_VS_non-mutated.png")
 ```
 
-2, co-oncoplot using MAF data to show top n most commonly mutated genes in MUC16 mutated samples compared to MUC16 non-mutated samples. This could tell a possible correlation(not causation) between MUC16 mutation and other genes that the mutation of which may possibly involve in tumor progression
+2, co-oncoplot using KRAS data to show top n most commonly mutated genes in KRAS mutated samples compared to KRAS non-mutated samples. This could tell a possible correlation(not causation) between KRAS mutation and other genes that the mutation of which may possibly involve in tumor progression
 
 ```{r}
 library(maftools)
@@ -171,21 +171,21 @@ library(ggplot2)
 
 ```{r}
 #create two subsets of patients, one with MUC16 mutation, the other without MUC16 mutation
-MUC16_barcodes<-maf_clinical$Tumor_Sample_Barcode[maf_clinical$MUC16_mutation_status==TRUE]
-non_MUC16_barcodes<-maf_clinical$Tumor_Sample_Barcode[maf_clinical$MUC16_mutation_status==FALSE]
+KRAS_barcodes<-maf_clinical$Tumor_Sample_Barcode[maf_clinical$KRAS_mutation_status==TRUE]
+non_KRAS_barcodes<-maf_clinical$Tumor_Sample_Barcode[maf_clinical$KRAS_mutation_status==FALSE]
 
 
-MUC16_maf <- subsetMaf(maf = maf_object,
-                       tsb = MUC16_barcodes)
-non_MUC16_maf <- subsetMaf(maf = maf_object,
-                       tsb = non_MUC16_barcodes)
+KRAS_maf <- subsetMaf(maf = maf_object,
+                       tsb = KRAS_barcodes)
+non_KRAS_maf <- subsetMaf(maf = maf_object,
+                       tsb = non_KRAS_barcodes)
 
-m1.genes = getGeneSummary(MUC16_maf)[1:5]
-m2.genes = getGeneSummary(non_MUC16_maf)[1:5]
+m1.genes = getGeneSummary(KRAS_maf)[1:5]
+m2.genes = getGeneSummary(non_KRAS_maf)[1:5]
 
-MUC16_maf.genes <- getGeneSummary(MUC16_maf)[, .(Hugo_Symbol, MutatedSamples)]
-non_MUC16_maf.genes <- getGeneSummary(non_MUC16_maf)[, .(Hugo_Symbol, MutatedSamples)]
-mdt <- merge(MUC16_maf.genes, non_MUC16_maf.genes, by = "Hugo_Symbol", all = TRUE)
+KRAS_maf.genes <- getGeneSummary(KRAS_maf)[, .(Hugo_Symbol, MutatedSamples)]
+non_KRAS_maf.genes <- getGeneSummary(non_KRAS_maf)[, .(Hugo_Symbol, MutatedSamples)]
+mdt <- merge(KRAS_maf.genes, non_KRAS_maf.genes, by = "Hugo_Symbol", all = TRUE)
 
 #mdt = merge(MUC16_maf.genes[,.(Hugo_Symbol, MutatedSamples)], non_MUC16_maf.genes[,.(Hugo_Symbol, MutatedSamples)], by = 'Hugo_Symbol', all = TRUE)
 mdt$MutatedSamples.x[is.na(mdt$MutatedSamples.x)] = 0
@@ -194,12 +194,12 @@ mdt$max = apply(mdt[,.(MutatedSamples.x, MutatedSamples.y)], 1, max)
 mdt = mdt[order(mdt$max, decreasing = TRUE)]
 
 #use base R plotting function to save the plot because class(co_oncoplot) is list and thus not compatible with ggsave
-#png("/home1/yuhanyua/490_cluster/final_project/coOncoplot_mutated_VS_non-mutated.png", width = 1000, height = 800)
+#png("/home1/yuhanyua/490_cluster/final_project/coOncoplot_mutated_VS_non-mutated.png", width = 2500, height = 2000)
 
-co_oncoplot<-coOncoplot(m1 = MUC16_maf, 
-           m2 = non_MUC16_maf, 
-           m1Name = "MUC16 mutated", 
-           m2Name = "MUC16 non-mutated", 
+co_oncoplot<-coOncoplot(m1 = KRAS_maf, 
+           m2 = non_KRAS_maf, 
+           m1Name = "KRAS mutated", 
+           m2Name = "KRAS non-mutated", 
            borderCol = NA
            )
 
@@ -210,7 +210,7 @@ co_oncoplot<-coOncoplot(m1 = MUC16_maf,
 
 
 
-3. Differential expression analysis using RNA-seq data. This will visualize the upregulation and downregulation of genes in MUC16 mutated samples compared to non-mutated patients, showing correlation between MUC16 mutation and other genes' expression which may involved in tumor progression.
+3. Differential expression analysis using RNA-seq data. This will visualize the upregulation and downregulation of genes in KRAS mutated samples compared to non-mutated patients, showing correlation between KRAS mutation and other genes' expression which may involved in tumor progression.
 
 ```{r}
 if (!require("DESeq2", quietly = TRUE))
@@ -222,9 +222,9 @@ library(EnhancedVolcano)
 ```
 
 ```{r}
-#rna_clinical<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_clinical.csv")
-#rna_counts<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_counts.csv", row.names = 1)
-#rna_genes<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_genes.csv")
+rna_clinical<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_clinical.csv")
+rna_counts<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_counts.csv", row.names = 1)
+rna_genes<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_genes.csv")
 
 colnames(rna_counts)<-rna_clinical$patient
 rownames(rna_counts)<-rna_genes$gene_id
@@ -232,8 +232,8 @@ rownames(rna_counts)<-rna_genes$gene_id
 
 ```{r}
 #variable of interest: comparing MUC16 mutated and non-mutated patients
-rna_clinical$MUC16_mutation_status<-ifelse(rna_clinical$patient%in%MUC16_mutated_samples$Tumor_Sample_Barcode,T,F)
-rna_clinical$MUC16_mutation_status<-factor(rna_clinical$MUC16_mutation_status)
+rna_clinical$KRAS_mutation_status<-ifelse(rna_clinical$patient%in%KRAS_mutated_samples$Tumor_Sample_Barcode,T,F)
+rna_clinical$KRAS_mutation_status<-factor(rna_clinical$KRAS_mutation_status)
 
 
 #covariates controlled: treatment history(immuno/chemo...) and race
@@ -280,14 +280,14 @@ rna_genes <- rna_genes[gene_filter, ]
 #Create DESeq2 Data Set (dds)
 dds <- DESeqDataSetFromMatrix(countData = rna_counts,
                               colData = rna_clinical,
-                            design=~race+Radiation+Chemo+Immuno+Molecular+Vaccine+MUC16_mutation_status)
+                            design=~race+Radiation+Chemo+Immuno+Molecular+Vaccine+KRAS_mutation_status)
 #Create DESeq2 Object
 dds_obj <- DESeq(dds)
 #Extract Results from DESeq
 resultsNames(dds_obj)
 results <- results(dds_obj,
                    format = "DataFrame", 
-                   contrast = c("MUC16_mutation_status", "TRUE", "FALSE"))
+                   contrast = c("KRAS_mutation_status", "TRUE", "FALSE"))
 
 results <- data.frame(results)
 ```
@@ -295,31 +295,24 @@ results <- data.frame(results)
 results[, "-log10(padj)"] <- -log10(results$padj)
 results[, "gene_name"] <- rna_genes$gene_name
 
-#EnhancedVolcano(results,
-#                lab = results$gene_name,
-#                x = 'log2FoldChange',
-#                y = '-log10(padj)',
-#                pCutoff = 0.05,
-#                FCcutoff = 1, 
-#                selectLab = c("NRAS", "LRP1B", "PKHD1L1", "BRAF"),
-#                title = 'Gene expression: MUC16 mutated samples VS MUC16 non-mutated samples',
-#                pointSize = 1.0,
-#                labSize = 5.0,)  
-
+#Plotting volcano plot, 5 top mutated genes from previous co-oncoplot is being labeled, so we can see whether these genes are upregulated/downregulated with KRAS mutatation relative KRAS non-mutated samples
+#DNAH5 gene may not show up in the plot because its padj value is NA
 EnhancedVolcano(results,
                 lab = results$gene_name,
                 x = 'log2FoldChange',
                 y = '-log10(padj)',
-                xlim = c(-5, 5),  
-                ylim = c(0, 25),  
-                selectLab = c("TTH", "LRP1B", "PKHD1L1", "BRAF"),  # Select specific genes
+                pCutoff = 0.05,
+                FCcutoff = 0.5, 
+                selectLab = c("DNAH10", "MUC16", "PCLO", "BRAF","TTN", "DNAH5"),
                 title = 'Gene expression: MUC16 mutated samples VS MUC16 non-mutated samples',
                 pointSize = 1.0,
                 labSize = 5.0,
-                drawConnectors = TRUE,
-                widthConnectors = 0.5)
+                drawConnectors = TRUE)+
+    xlim(c(-5, 5))+
+    ylim(c(0, 5))
 
-#results[results$gene_name %in% c("NRAS", "LRP1B", "PKHD1L1", "BRAF"), ]
+
+#results[results$gene_name %in% c("DNAH10", "MUC16", "PCLO", "BRAF","TTN", "DNAH5"), ]
 
 #ggsave("/home1/yuhanyua/490_cluster/final_project/VolcanoPlot_mutated_VS_non-mutated.png")
 ```
@@ -334,7 +327,7 @@ EnhancedVolcano(results,
 
 
 
-4.Boxplot to compare MUC16 transcriptional expression between metastatic and non-metastatic samples using transcriptomics data.
+4.Boxplot to compare KRAS transcriptional expression between metastatic and non-metastatic samples using transcriptomics data.
 ```{r}
 if (!require("sesameData", quietly = TRUE))
 BiocManager::install("sesameData")
@@ -370,7 +363,7 @@ cpg_sites <- cpg_sites[site_mask,]
 #write.csv(methylation_clinical, 'SKCM_methylation_clinical.csv')
 ```
 ```{r}
-#read in methylation data, this should be comment out after submitting
+#read in methylation data from my files, this should be comment out when submitting
 #methylation_clinical <- read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_methylation_clinical.csv")
 #betas <- read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_methylation_betas.csv", row.names = 1)
 #cpg_sites <- read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_cpg_sites.csv")
@@ -379,8 +372,8 @@ cpg_sites <- cpg_sites[site_mask,]
 
 
 ```{r}
-gene_counts_mask <- rna_genes$gene_name == "MUC16"
-gene_betas_mask <- cpg_sites$gene == "MUC16"
+gene_counts_mask <- rna_genes$gene_name == "KRAS"
+gene_betas_mask <- cpg_sites$gene == "KRAS"
 
 rna_clinical_metastatic <- rna_clinical$definition == "Metastatic"
 methylation_clinical_metastatic <- methylation_clinical$definition == "Metastatic"
@@ -394,8 +387,8 @@ methylation_metastatic <- (betas[gene_betas_mask, methylation_clinical_metastati
 rna_nonMetastatic <- as.numeric(rna_counts[gene_counts_mask, rna_clinical_nonMetastatic])
 methylation_nonMetastatic <- (betas[gene_betas_mask, methylation_clinical_nonMetastatic])
 
-#use R base plotting to save the box plot
-#png("/home1/yuhanyua/490_cluster/final_project/boxplot_MUC16transcriptomics_MetastaticVSnon-metastatic.png", width=800, height=600)
+#use R base plotting to save the boxplot to my directory, this should be comment out when submitting
+png("/home1/yuhanyua/490_cluster/final_project/boxplot_KRAStranscriptomics_MetastaticVSnon-metastatic.png", width=800, height=600)
 
 #create the box plot
 boxplot(rna_nonMetastatic, rna_metastatic,
@@ -405,17 +398,17 @@ boxplot(rna_nonMetastatic, rna_metastatic,
         ylim = c(0, 500))          #setting the boundary for y-axis(counts)
 
 #save the boxplot
-#dev.off()
+dev.off()
 
-#little difference is found
-#MUC16’s role in metastasis is well-documented in ovarian cancer and other cancers, but its role in melanoma metastasis may be different and might require different molecular context or co-factors to be significant.
 ```
 
 
-5. bargraph to compare methylation levels across CpG sites of MUC16 gene in metastatic versus non-metastatic samples, highlighting potential epigenetic regulation.
+5. bargraph to compare methylation levels across CpG sites of KRAS gene in metastatic versus non-metastatic samples, highlighting potential epigenetic regulation.
 ```{r}
-#png("/home1/yuhanyua/490_cluster/final_project/barplot_MUC16_methylation_MetastaticVSnon-metastatic.png", width=800, height=600)
+#use R base plotting to save the boxplot to my directory, this should be comment out when submitting
+#png("/home1/yuhanyua/490_cluster/final_project/barplot_KRAS_methylation_MetastaticVSnon-metastatic.png", width=800, height=600)
 
+#Blue is the methylation level of KRAS of non-metastatic sample across CpG sites, and the red one is the methylation level of KRAS of metastatic-sample across CpG sites
 plot(1:dim(methylation_nonMetastatic)[1], apply(methylation_nonMetastatic, 1, mean), col='blue', type='h', lwd=3, ylab='Average Beta', xlab='CpG sites')
 lines(1.3:(dim(methylation_nonMetastatic)[1]+0.3), apply(methylation_metastatic, 1, mean), col='red', type='h', lwd=3)
 
