@@ -222,9 +222,9 @@ library(EnhancedVolcano)
 ```
 
 ```{r}
-rna_clinical<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_clinical.csv")
-rna_counts<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_counts.csv", row.names = 1)
-rna_genes<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_genes.csv")
+#rna_clinical<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_clinical.csv")
+#rna_counts<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_counts.csv", row.names = 1)
+#rna_genes<-read.csv("/home1/yuhanyua/490_cluster/analysis_data/SKCM_rna_genes.csv")
 
 colnames(rna_counts)<-rna_clinical$patient
 rownames(rna_counts)<-rna_genes$gene_id
@@ -372,6 +372,8 @@ cpg_sites <- cpg_sites[site_mask,]
 
 
 ```{r}
+rna_tpm <- rna_se@assays@data$tpm_unstrand
+
 gene_counts_mask <- rna_genes$gene_name == "KRAS"
 gene_betas_mask <- cpg_sites$gene == "KRAS"
 
@@ -381,24 +383,23 @@ methylation_clinical_metastatic <- methylation_clinical$definition == "Metastati
 rna_clinical_nonMetastatic <- rna_clinical$definition == "Primary solid Tumor"
 methylation_clinical_nonMetastatic <- methylation_clinical$definition == "Primary solid Tumor"
 
-rna_metastatic <- as.numeric(rna_counts[gene_counts_mask, rna_clinical_metastatic])
+rna_metastatic <- as.numeric(rna_tpm[gene_counts_mask, rna_clinical_metastatic])
 methylation_metastatic <- (betas[gene_betas_mask, methylation_clinical_metastatic])
 
-rna_nonMetastatic <- as.numeric(rna_counts[gene_counts_mask, rna_clinical_nonMetastatic])
+rna_nonMetastatic <- as.numeric(rna_tpm[gene_counts_mask, rna_clinical_nonMetastatic])
 methylation_nonMetastatic <- (betas[gene_betas_mask, methylation_clinical_nonMetastatic])
 
 #use R base plotting to save the boxplot to my directory, this should be comment out when submitting
-png("/home1/yuhanyua/490_cluster/final_project/boxplot_KRAStranscriptomics_MetastaticVSnon-metastatic.png", width=800, height=600)
+#png("/home1/yuhanyua/490_cluster/final_project/boxplot_KRAStranscriptomics_MetastaticVSnon-metastatic.png", width=800, height=600)
 
 #create the box plot
 boxplot(rna_nonMetastatic, rna_metastatic,
         xlab='Group',
         ylab='Counts',
-        names=c('non-metastatic', 'metastatic'),
-        ylim = c(0, 500))          #setting the boundary for y-axis(counts)
+        names=c('non-metastatic', 'metastatic'))          #setting the boundary for y-axis(counts)
 
 #save the boxplot
-dev.off()
+#dev.off()
 
 ```
 
